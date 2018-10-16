@@ -1,0 +1,42 @@
+import argparse
+import json
+import os
+
+class ManualTestCaseJSON:
+    def __init__(self):
+        self.data = ''
+        self.testmodule = ''
+        self.testsuite = ''
+        self.testcase = ''
+        self.testcase_list= ''
+
+
+    def readJSONfile(self,args):
+        self.data = json.load(open('%s' % args.file))
+        self.total = len(self.data)
+        self.testmodule = self.data[0]['test']['@alias'].split('.', 2)[0]
+        self.testsuite = self.data[0]['test']['@alias'].split('.', 2)[1]
+        return self.data,self.total,self.testmodule,self.testsuite
+
+    def scan_test_case(self):
+        self.jdata = readJSONfile()
+        self.testcase_list = []
+        for i in range(0, self.total):
+            self.testcase_list.append(self.jdata[i]['test']['@alias'].split('.', 2)[2])
+        print('TestCase =', self.testcase_list)
+
+
+if __name__ == '__main__':
+    data = ManualTestCaseJSON()
+    #Create the top-Level parser
+    parser = argparse.ArgumentParser(description='Helper script for results populating during manual test execution.')
+
+    parser.add_argument('-F', '--file', dest='file', action='store', required=True,
+                          help='Specify path to manual test case JSON file. Note: Please use \"\" to encapsulate the file path.')
+    parser.set_defaults(func=data.readJSONfile)
+    args = parser.parse_args()
+    args.func(args)
+
+    print('Total Length Data =', data.total)
+    print('Testmodule =', data.testmodule)
+    print('TestSuite =', data.testsuite)
