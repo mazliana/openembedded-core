@@ -1,0 +1,24 @@
+from oeqa.selftest.case import OESelftestTestCase
+from oeqa.utils.commands import bitbake, runqemu, get_bb_var, runCmd
+
+class KernelDev(OESelftestTestCase):
+
+    def setUpLocal(self):
+        super(KernelDev, self).setUpLocal()
+        self.recipe = 'core-image-minimal'
+        self.machine =  'qemux86-64'
+        self.write_config(
+"""
+MACHINE = "%s"
+"""
+% (self.machine)
+        )
+        bitbake(self.recipe)
+        
+    def test_getMachine(self):
+        getmachine = get_bb_var('MACHINE')
+        self.assertEqual(getmachine, 'qemux86-64')
+    
+    def test_getLinuxVersion(self):
+        result = runCmd('bitbake virtual/kernel -e | grep LINUX_VERSION')
+        self.assertTrue('LINUX_VERSION' in result.output, msg = "Please look value at LINUX_VERSION")
