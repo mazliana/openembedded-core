@@ -115,7 +115,7 @@ def main():
         test_result.update(manualtestcasejson.execute_test_steps(i))
     test_results = {}
     test_results[manualtestcasejson.result_id] = {'configuration': manualtestcasejson.configuration, 'result': test_result}
-    with open('testing.json', "w") as f:
+    with open('test_result.json', "w") as f:
         json.dump(test_results, f, ensure_ascii=True, indent=4)
 
 if __name__ == '__main__':
