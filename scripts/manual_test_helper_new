@@ -1,42 +1,122 @@
 import argparse
 import json
 import os
+import sys
+import datetime
+import re
 
-class ManualTestCaseJSON:
+class ManualTestCaseJSON(object):
     def __init__(self):
-        self.data = ''
+        self.jdata = ''
         self.testmodule = ''
         self.testsuite = ''
         self.testcase = ''
-        self.testcase_list= ''
+        self.configuration = ''
+        self.host_distro = ''
+        self.host_name = ''
+        self.machine = ''
+        self.starttime = ''
+        self.result_id = ''
 
+    def read_json(self, args):
+        self.jdata = json.load(open('%s' % args.file))
+        self.testcase = []
+        self.testmodule = self.jdata[0]['test']['@alias'].split('.', 2)[0]
+        self.testsuite = self.jdata[0]['test']['@alias'].split('.', 2)[1]
+        for i in range(0, len(self.jdata)):
+            self.testcase.append(self.jdata[i]['test']['@alias'].split('.', 2)[2])
+        return self.jdata, self.testmodule, self.testsuite, self.testcase
 
-    def readJSONfile(self,args):
-        self.data = json.load(open('%s' % args.file))
-        self.total = len(self.data)
-        self.testmodule = self.data[0]['test']['@alias'].split('.', 2)[0]
-        self.testsuite = self.data[0]['test']['@alias'].split('.', 2)[1]
-        return self.data,self.total,self.testmodule,self.testsuite
+    def create_config(self):
+        self.configuration = {}
+        while True:
+            self.host_distro = input('Distro Name = ')
+            if re.match('[a-zA-Z0-9_]', self.host_distro):
+                break
+            print('Please enter only one character and only alphanumeric and underscore are allowed')
+        while True:
+            self.host_name = input('Host Name = ')
+            if re.match('[a-zA-Z0-9_]', self.host_name):
+                break
+            print('Please enter only one character and only alphanumeric and underscore are allowed')
+        while True:
+            self.machine = input('Machine = ')
+            if re.match('[a-zA-Z0-9_]', self.machine):
+                break
+            print('Please enter only one character and only alphanumeric and underscore are allowed')
+        currentDT = datetime.datetime.now()
+        self.starttime = currentDT.strftime('%Y%m%d%H%M%S')
+        self.test_type = self.testmodule
+        self.configuration['HOST_DISTRO'] = self.host_distro
+        self.configuration['HOST_NAME'] = self.host_name
+        self.configuration['MACHINE'] = self.machine
+        self.configuration['STARTTIME'] = self.starttime
+        self.configuration['TEST_TYPE'] = self.test_type
+        return self.configuration
 
-    def scan_test_case(self):
-        self.jdata = readJSONfile()
-        self.testcase_list = []
-        for i in range(0, self.total):
-            self.testcase_list.append(self.jdata[i]['test']['@alias'].split('.', 2)[2])
-        print('TestCase =', self.testcase_list)
+    def create_result_id(self):
+        self.result_id = self.test_type + '_' + self.host_distro + '_' + self.machine + '_' + self.starttime
+        return self.result_id
 
+    def execute_test_steps(self, testID):
+        temp = {}
+        testcaseID = self.testsuite + '.' + self.testsuite + '.' + self.testcase[testID]
+        logfile = testcaseID + '.log'
+        print('------------------------------------------------------------------------')
+        print('Executing test case:' + '' '' + self.testcase[testID])
+        print('------------------------------------------------------------------------')
+        print('You have total ' + max(self.jdata[testID]['test']['execution'].keys()) + ' test steps to be executed.')
+        print('------------------------------------------------------------------------\n')
+
+        for step in range(1, int(max(self.jdata[testID]['test']['execution'].keys()) + '1')):
+            print('Step %s: ' % step + self.jdata[testID]['test']['execution']['%s' % step]['action'])
+            print('Expected output: ' + self.jdata[testID]['test']['execution']['%s' % step]['expected_results'])
+            if step == int(max(self.jdata[testID]['test']['execution'].keys())):
+                done = input('\nPlease provide test results: (P)assed/(F)ailed/(B)locked? \n')
+                break
+            else:
+                done = input('\nPlease press ENTER when you are done to proceed to next step.\n')
+                step = step + 1
+
+        if done == 'p' or done == 'P':
+            res = "PASSED"
+        elif done == 'f' or done == 'F':
+            res = 'FAILED'
+            log_input = input('\nPlease enter the error and the description of the log: (Ex:log:211 Error Bitbake)\n')
+            with open(logfile, 'w+') as f:
+                f.write('---------------------This is the log file-----------------------\n')
+                f.write(log_input)
+
+        elif done == 'b' or done == 'B':
+            res = 'BLOCKED'
+        else:
+            res = 'SKIPPED'
+        temp.update({testcaseID: {'status': '%s' % res}})
+        return temp
+        
+def main():
+    # get the path of the script
+    write_dir = os.path.dirname(os.path.realpath(__file__))
+    # Create the top-Level parser
+    parser = argparse.ArgumentParser(description='Helper script for results populating during manual test execution.')
+    # adding arguments,used when parse_args() is called
+    parser.add_argument('-F', '--file', dest='file', required=True, action='store',
+                        help='Specify path to manual test case JSON file. '
+                             'Note: Please use \"\" to encapsulate the file path.'
+                             'You can find file in meta/lib/oeqa/manual/')
+    args = parser.parse_args()
+    manualtestcasejson = ManualTestCaseJSON()
+    data = manualtestcasejson.read_json(args)
+    test_result = {}
+    manualtestcasejson.create_config()
+    manualtestcasejson.create_result_id()
+    for i in range(0, len(manualtestcasejson.jdata)):
+        execute_test_steps = manualtestcasejson.execute_test_steps(i)
+        test_result.update(manualtestcasejson.execute_test_steps(i))
+    test_results = {}
+    test_results[manualtestcasejson.result_id] = {'configuration': manualtestcasejson.configuration, 'result': test_result}
+    with open('testing.json', "w") as f:
+        json.dump(test_results, f, ensure_ascii=True, indent=4)
 
 if __name__ == '__main__':
-    data = ManualTestCaseJSON()
-    #Create the top-Level parser
-    parser = argparse.ArgumentParser(description='Helper script for results populating during manual test execution.')
-
-    parser.add_argument('-F', '--file', dest='file', action='store', required=True,
-                          help='Specify path to manual test case JSON file. Note: Please use \"\" to encapsulate the file path.')
-    parser.set_defaults(func=data.readJSONfile)
-    args = parser.parse_args()
-    args.func(args)
-
-    print('Total Length Data =', data.total)
-    print('Testmodule =', data.testmodule)
-    print('TestSuite =', data.testsuite)
+    sys.exit(main())
